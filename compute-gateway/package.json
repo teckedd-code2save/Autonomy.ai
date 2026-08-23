@@ -1,0 +1,15 @@
+{
+  "name": "agent-compute-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@infisical/sdk": "5.0.2",
+    "modal": "0.9.0"
+  }
+}
