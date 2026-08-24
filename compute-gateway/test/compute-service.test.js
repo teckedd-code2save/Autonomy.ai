@@ -62,3 +62,26 @@ test("Gate 0 rejects excessive runtime before touching provider", async () => {
   );
   assert.equal(called, false);
 });
+
+test("Modal connection test proves access without returning credentials", async () => {
+  const seen = {};
+  const credentialBroker = {
+    async getModalCredentials() {
+      return { tokenId: "modal-token-id-secret", tokenSecret: "modal-token-secret-secret" };
+    },
+  };
+  const clientFactory = (credentials) => {
+    seen.credentials = credentials;
+    return {
+      apps: { fromName: async () => ({ appId: "app-test" }) },
+      close: () => { seen.closed = true; },
+    };
+  };
+
+  const modal = new ModalProvider({ credentialBroker, appName: "test", clientFactory });
+  const result = await modal.testConnection();
+
+  assert.deepEqual(result, { provider: "modal", connected: true, appId: "app-test" });
+  assert.equal(JSON.stringify(result).includes("modal-token"), false);
+  assert.equal(seen.closed, true);
+});
