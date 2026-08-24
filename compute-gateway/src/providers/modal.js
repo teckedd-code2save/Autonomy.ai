@@ -11,6 +11,22 @@ export class ModalProvider {
     return new ModalClient(credentials);
   }
 
+  async testConnection() {
+    const credentials = await this.credentialBroker.getModalCredentials();
+    const modal = await this.#createClient(credentials);
+
+    try {
+      const app = await modal.apps.fromName(this.appName, { createIfMissing: true });
+      return {
+        provider: "modal",
+        connected: true,
+        appId: app?.appId ?? null,
+      };
+    } finally {
+      modal.close?.();
+    }
+  }
+
   async execute(workload) {
     const credentials = await this.credentialBroker.getModalCredentials();
     const modal = await this.#createClient(credentials);
