@@ -46,6 +46,11 @@ const server = http.createServer(async (req, res) => {
       return json(res, 401, { error: "unauthorized" });
     }
 
+    if (req.url === "/v1/providers/modal/test" && req.method === "POST") {
+      const result = await modalProvider.testConnection();
+      return json(res, 200, result);
+    }
+
     if (req.url === "/v1/compute/execute" && req.method === "POST") {
       const body = await readJson(req);
       const result = await compute.execute(body);
