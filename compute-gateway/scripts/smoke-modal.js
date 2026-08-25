@@ -1,5 +1,8 @@
 import { loadConfig } from "../src/config.js";
-import { InfisicalCredentialBroker } from "../src/credential-broker.js";
+import {
+  EnvironmentCredentialBroker,
+  InfisicalCredentialBroker,
+} from "../src/credential-broker.js";
 import { ModalProvider } from "../src/providers/modal.js";
 import { ComputeService } from "../src/compute-service.js";
 
@@ -11,11 +14,22 @@ function stage(name) {
 
 async function main() {
   const config = loadConfig();
-  const broker = new InfisicalCredentialBroker(config.infisical);
+  const hasInjectedModalCredentials = Boolean(
+    process.env.MODAL_TOKEN_ID && process.env.MODAL_TOKEN_SECRET,
+  );
+
+  const broker = hasInjectedModalCredentials
+    ? new EnvironmentCredentialBroker()
+    : new InfisicalCredentialBroker(config.infisical);
+
   const modal = new ModalProvider({ credentialBroker: broker, appName: config.modal.appName });
   const compute = new ComputeService({ modalProvider: modal });
 
-  stage("resolving Infisical-backed Modal connection");
+  stage(
+    hasInjectedModalCredentials
+      ? "using short-lived Infisical OIDC-injected Modal connection"
+      : "resolving Infisical-backed Modal connection",
+  );
   const connection = await modal.testConnection();
   console.log(JSON.stringify(connection));
 
