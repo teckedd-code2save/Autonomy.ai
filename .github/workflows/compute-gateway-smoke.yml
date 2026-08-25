@@ -16,7 +16,10 @@ jobs:
       run:
         working-directory: compute-gateway
     env:
-      INFISICAL_SITE_URL: https://app.infisical.com
+      # For self-hosted Infisical, set the non-secret repository variable
+      # INFISICAL_SITE_URL to the public HTTPS base URL, e.g.
+      # https://secrets.example.com. Cloud remains the fallback.
+      INFISICAL_SITE_URL: ${{ vars.INFISICAL_SITE_URL || 'https://app.infisical.com' }}
       INFISICAL_CLIENT_ID: ${{ secrets.INFISICAL_CLIENT_ID }}
       INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}
       INFISICAL_PROJECT_ID: ${{ secrets.INFISICAL_PROJECT_ID }}
@@ -48,4 +51,5 @@ jobs:
         if: env.INFISICAL_CLIENT_ID == '' || env.INFISICAL_CLIENT_SECRET == '' || env.INFISICAL_PROJECT_ID == ''
         run: |
           echo "Unit tests passed, but live Modal execution was skipped."
-          echo "Add INFISICAL_CLIENT_ID, INFISICAL_CLIENT_SECRET, and INFISICAL_PROJECT_ID as GitHub Actions repository secrets, then push/re-run."
+          echo "Add INFISICAL_CLIENT_ID, INFISICAL_CLIENT_SECRET, and INFISICAL_PROJECT_ID as GitHub Actions repository secrets."
+          echo "For self-hosted Infisical, also set repository variable INFISICAL_SITE_URL to the public HTTPS base URL, then re-run."
