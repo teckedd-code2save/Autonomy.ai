@@ -1,0 +1,53 @@
+name: Compute Gateway Smoke
+
+on:
+  push:
+    branches:
+      - feature/agent-compute-gateway-gate0
+    paths:
+      - "compute-gateway/**"
+      - ".github/workflows/compute-gateway-smoke.yml"
+  workflow_dispatch:
+
+jobs:
+  gate0:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: compute-gateway
+    env:
+      INFISICAL_SITE_URL: https://app.infisical.com
+      INFISICAL_CLIENT_ID: ${{ secrets.INFISICAL_CLIENT_ID }}
+      INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+      INFISICAL_PROJECT_ID: ${{ secrets.INFISICAL_PROJECT_ID }}
+      INFISICAL_ENVIRONMENT: dev
+      INFISICAL_SECRET_PATH: /providers/modal
+      MODAL_APP_NAME: compute-gateway-poc
+      AGENT_API_KEY: ci-smoke-only-not-used-by-direct-script
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: compute-gateway/package-lock.json
+
+      - name: Install
+        run: npm install
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Live Modal CPU smoke
+        if: env.INFISICAL_CLIENT_ID != '' && env.INFISICAL_CLIENT_SECRET != '' && env.INFISICAL_PROJECT_ID != ''
+        run: npm run smoke:modal
+
+      - name: Explain skipped live smoke
+        if: env.INFISICAL_CLIENT_ID == '' || env.INFISICAL_CLIENT_SECRET == '' || env.INFISICAL_PROJECT_ID == ''
+        run: |
+          echo "Unit tests passed, but live Modal execution was skipped."
+          echo "Add INFISICAL_CLIENT_ID, INFISICAL_CLIENT_SECRET, and INFISICAL_PROJECT_ID as GitHub Actions repository secrets, then push/re-run."
