@@ -1,5 +1,19 @@
 import { InfisicalSDK } from "@infisical/sdk";
 
+export class EnvironmentCredentialBroker {
+  constructor(env = process.env) {
+    this.env = env;
+  }
+
+  async getModalCredentials() {
+    const tokenId = this.env.MODAL_TOKEN_ID;
+    const tokenSecret = this.env.MODAL_TOKEN_SECRET;
+
+    if (!tokenId || !tokenSecret) throw new Error("Modal credentials are incomplete");
+    return { tokenId, tokenSecret };
+  }
+}
+
 export class InfisicalCredentialBroker {
   #client;
   #config;
