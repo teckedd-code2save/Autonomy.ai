@@ -1,0 +1,61 @@
+name: Agent Compute Gateway
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "scripts/**"
+      - "test/**"
+      - "package.json"
+      - ".github/workflows/compute-gateway-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  gate0:
+    runs-on: ubuntu-latest
+    env:
+      MODAL_APP_NAME: agent-compute-gateway
+      AGENT_API_KEY: ci-smoke-only-not-used-by-direct-script
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install
+        run: npm install
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Fetch Modal credentials from Infisical Cloud with OIDC
+        if: vars.INFISICAL_IDENTITY_ID != '' && vars.INFISICAL_PROJECT_SLUG != ''
+        uses: Infisical/secrets-action@v1.0.9
+        with:
+          method: "oidc"
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
+          env-slug: "dev"
+          secret-path: "/providers/modal"
+          domain: "https://app.infisical.com"
+
+      - name: Live Modal CPU smoke
+        if: vars.INFISICAL_IDENTITY_ID != '' && vars.INFISICAL_PROJECT_SLUG != ''
+        run: npm run smoke:modal
+
+      - name: Explain skipped live smoke
+        if: vars.INFISICAL_IDENTITY_ID == '' || vars.INFISICAL_PROJECT_SLUG == ''
+        run: |
+          echo "Unit tests passed. Live Modal execution is not configured yet."
+          echo "Create an Infisical Cloud OIDC machine identity for this repository."
+          echo "Set only INFISICAL_IDENTITY_ID and INFISICAL_PROJECT_SLUG as non-secret repository variables."
+          echo "No Infisical client secret is required in GitHub Actions."
