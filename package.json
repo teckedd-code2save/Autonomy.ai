@@ -8,7 +8,8 @@
     "start": "node src/server.js",
     "test": "node --test",
     "smoke:modal": "node scripts/smoke-modal.js",
-    "smoke:modal:gpu": "node scripts/smoke-modal.js --gpu"
+    "smoke:modal:gpu": "node scripts/smoke-modal.js --gpu",
+    "smoke:hf": "node scripts/smoke-hf.js"
   },
   "dependencies": {
     "@infisical/sdk": "5.0.2",

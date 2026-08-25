@@ -36,11 +36,17 @@ That exposed two walls for autonomous agents:
 
 The product is therefore not a wallet, secret manager, or static GPU-price table. It is an execution gateway over a user's connected compute estate.
 
-## Current Gate 0
+## Current status
 
 Gate 0 intentionally proves only this:
 
 > An agent with zero Modal credentials can execute an authorized workload on the user's Modal account without receiving the Modal token pair.
+
+Since then, the following gates are implemented and unit-tested (live provider proof still requires real credentials, see [`docs/ROADMAP.md`](docs/ROADMAP.md)):
+
+- **Gate 1** — provider-neutral `compute.execute()` model, structured execution IDs, execution list/status/stop endpoints, output size limits.
+- **Gate 2** — Hugging Face Jobs provider adapter with normalized failure classification (`402` → `billing_unavailable`, fallback-eligible; workload failure → `execution_error`, never retried elsewhere).
+- **Gate 3** — deterministic fallback router. When Hugging Face cannot run a workload, the identical workload continues on Modal and the result returns to the agent with full failover provenance.
 
 Current flow:
 
@@ -114,20 +120,34 @@ GPU smoke:
 npm run smoke:modal:gpu
 ```
 
+Hugging Face Jobs smoke (requires `HF_NAMESPACE` and an HF token via env or Infisical):
+
+```bash
+npm run smoke:hf
+```
+
 Expected CPU proof:
 
 ```text
 hello from credentialless Modal
 ```
 
-## Public POC API
+## Public API
 
 ```http
+GET  /health
+GET  /v1/providers
 POST /v1/providers/modal/test
+POST /v1/providers/huggingface/test
 POST /v1/compute/execute
+GET  /v1/compute/executions
+GET  /v1/compute/executions/:id
+POST /v1/compute/executions/:id/stop
 ```
 
-Example:
+All endpoints except `/health` require `Authorization: Bearer $AGENT_API_KEY`.
+
+`POST /v1/compute/execute` accepts the flat shape:
 
 ```json
 {
@@ -137,7 +157,40 @@ Example:
 }
 ```
 
-Gate 0 always selects Modal. There is deliberately no fake decision engine yet.
+or the normalized intent shape:
+
+```json
+{
+  "kind": "batch",
+  "runtime": { "image": "ghcr.io/acme/asr-benchmark:sha", "command": ["python", "benchmark.py"] },
+  "requirements": { "accelerator": "gpu", "gpuClass": "T4", "minVramGb": 16 },
+  "constraints": { "maxRuntimeSeconds": 120, "network": "egress-only" },
+  "economics": { "maxSpendUsd": 2, "optimizeFor": "effective_cost" }
+}
+```
+
+Optionally pin a route with `"provider": "modal"` or `"provider": "huggingface"`. Without it, the router tries candidates in `ROUTE_ORDER` (default `huggingface,modal`), skipping unconfigured providers, and fails over only on fallback-eligible route failures (billing, auth, capacity). A workload that ran and failed is never retried on another provider.
+
+The response carries routing provenance:
+
+```json
+{
+  "provider": "modal",
+  "status": "succeeded",
+  "executionId": "exec_...",
+  "providerExecutionId": "sb-...",
+  "stdout": "hello\n",
+  "stderr": "",
+  "outputTruncated": false,
+  "route": {
+    "candidates": ["huggingface", "modal"],
+    "attempts": [
+      { "executionId": "exec_...", "provider": "huggingface", "status": "failed", "failureCode": "billing_unavailable", "fallbackEligible": true },
+      { "executionId": "exec_...", "provider": "modal", "status": "succeeded" }
+    ]
+  }
+}
+```
 
 ## Product direction
 
@@ -200,12 +253,12 @@ The wedge being tested is:
 ## Roadmap
 
 ```text
-Gate 0A  local/unit credentialless Modal path
-Gate 0B  real Infisical Cloud OIDC -> Modal CPU sandbox
-Gate 0C  real Modal GPU smoke
-Gate 1   provider-neutral compute.execute() model
-Gate 2   Hugging Face provider
-Gate 3   HF 402/unavailable -> automatic Modal fallback
+Gate 0A  local/unit credentialless Modal path                 [done]
+Gate 0B  real Infisical Cloud OIDC -> Modal CPU sandbox       [needs live credentials]
+Gate 0C  real Modal GPU smoke                                 [needs live credentials]
+Gate 1   provider-neutral compute.execute() model             [done, unit-tested]
+Gate 2   Hugging Face provider                                [done, unit-tested; needs live HF proof]
+Gate 3   HF 402/unavailable -> automatic Modal fallback       [done, unit-tested; needs live proof]
 Gate 4   cost, credit, latency and reliability-aware routing
 Gate 5   broader compute procurement and machine-payment adapters
 ```

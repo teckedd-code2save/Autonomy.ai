@@ -129,3 +129,15 @@ This file records the decisions that shaped Gate 0 so the rationale does not dis
 **Decision:** "Agent Compute Gateway" / "Compute Gateway" is a product/category description for now.
 
 **Why:** `ComputeRouter.ai` already exists, and naming should wait until the execution thesis is validated.
+
+---
+
+## D016 - Deterministic fallback router before any optimizer
+
+**Decision:** Gate 3 routing is a fixed-order failover chain (`ROUTE_ORDER`, default `huggingface,modal`) driven only by normalized failure classifications.
+
+**Why:** The product's first promise is completion, not optimization. A `402`/unavailable/auth failure means the route never really ran, so continuing on the next candidate is safe. An `execution_error` means the workload itself failed, so the chain stops — retrying it elsewhere would burn budget to repeat the same failure.
+
+**Invariant:** failover passes the identical normalized workload to every candidate. Budget, runtime limit, required hardware, and provider policy are never silently relaxed.
+
+**Replaces:** D011 ("no routing engine in Gate 0") — routing is allowed now that secure execution and failure classification exist.

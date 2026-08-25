@@ -69,48 +69,47 @@ Exit criteria:
 
 ## Gate 1 - Normalize `compute.execute()`
 
-Introduce provider-neutral models:
+**Status:** implemented, tests passing. Live provider proof pending credentials.
 
-- workload intent
-- requirements
-- constraints
-- execution record
-- artifacts
+Shipped:
 
-Refactor Modal into a real `ComputeProvider` adapter.
+- provider-neutral workload normalization (flat Gate 0 shape and semantic intent shape both accepted)
+- in-memory `ExecutionRegistry` with structured `exec_*` IDs
+- execution list / status / stop endpoints
+- output size limits (`MAX_OUTPUT_BYTES`, default 256 KiB per stream)
+- runtime policy as a first-class, pre-credential step (`MAX_TIMEOUT_MS`, `ALLOWED_GPUS`, `ALLOWED_PROVIDERS`)
+- Modal refactored toward the `ComputeProvider` adapter shape (`capabilities`, `isConfigured`, stop handle)
 
-Add:
-
-- execution status endpoint
-- stop endpoint
-- structured execution IDs
-- output limits
+Still deferred: durable persistence (records are in-memory), per-workspace budgets.
 
 ## Gate 2 - Hugging Face provider
 
-Add Hugging Face Jobs adapter.
+**Status:** adapter implemented, tests passing. Live HF Jobs proof pending an HF token + namespace.
 
-Requirements:
+Shipped:
 
-- capability test
-- cost/billing-state awareness where available
-- submit/status/cancel
-- result/artifact handling
-- normalized failure classification
+- HTTPS Jobs adapter (`POST /api/jobs/{namespace}`, status polling, logs, cancel)
+- GPU class → hardware flavor mapping (T4 → `t4-small`, L4 → `l4x1`, A10G → `a10g-small`, A100 → `a100-large`, H100/H200 → `h200`)
+- capability test via `/api/whoami-v2`
+- normalized failure classification: 402 → `billing_unavailable`, 401/403 → `auth_invalid`, 429 → `rate_limited`, 5xx/network → `provider_unavailable`, job `ERROR` stage → `execution_error`
+- credential broker extended: `HF_TOKEN` via env injection or Infisical `/providers/huggingface`
+- `npm run smoke:hf`
+
+Still deferred: artifact collection beyond logs, cost/billing-state awareness.
 
 ## Gate 3 - First router behavior
 
-Recreate the incident that started the product.
+**Status:** implemented, tests passing. The origin incident (HF `402` → Modal continuation) is reproduced deterministically in `test/router.test.js`. Live proof pending credentials.
 
-```text
-HF job requested
- -> HF cannot run / billing 402
- -> Modal is connected and feasible
- -> same workload runs on Modal
- -> result returns to agent
-```
+Behavior:
 
-No general optimizer yet. A deterministic fallback policy is enough.
+- deterministic candidate order via `ROUTE_ORDER` (default `huggingface,modal`)
+- unconfigured providers are skipped before any credential retrieval
+- failover happens only on fallback-eligible classifications (`billing_unavailable`, `auth_invalid`, `provider_unavailable`); `execution_error` stops the chain because the workload itself failed
+- the identical normalized workload is passed to every candidate — failover never relaxes budget, runtime, hardware, or provider policy
+- provenance: every attempt is an `ExecutionRecord`; fallback attempts carry `parentExecutionId` and `routeReason`, and the execute response includes `route.candidates` / `route.attempts`
+
+Still a deterministic policy, not an optimizer — quotes and scoring arrive in Gate 4.
 
 ## Gate 4 - Candidate/quote decision engine
 
