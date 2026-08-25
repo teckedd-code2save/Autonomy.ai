@@ -9,6 +9,10 @@ on:
       - ".github/workflows/compute-gateway-smoke.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   gate0:
     runs-on: ubuntu-latest
@@ -16,15 +20,6 @@ jobs:
       run:
         working-directory: compute-gateway
     env:
-      # For self-hosted Infisical, set the non-secret repository variable
-      # INFISICAL_SITE_URL to the public HTTPS base URL, e.g.
-      # https://secrets.example.com. Cloud remains the fallback.
-      INFISICAL_SITE_URL: ${{ vars.INFISICAL_SITE_URL || 'https://app.infisical.com' }}
-      INFISICAL_CLIENT_ID: ${{ secrets.INFISICAL_CLIENT_ID }}
-      INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}
-      INFISICAL_PROJECT_ID: ${{ secrets.INFISICAL_PROJECT_ID }}
-      INFISICAL_ENVIRONMENT: dev
-      INFISICAL_SECRET_PATH: /providers/modal
       MODAL_APP_NAME: compute-gateway-poc
       AGENT_API_KEY: ci-smoke-only-not-used-by-direct-script
 
@@ -43,13 +38,24 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: Fetch Modal credentials from Infisical Cloud with OIDC
+        if: vars.INFISICAL_IDENTITY_ID != '' && vars.INFISICAL_PROJECT_SLUG != ''
+        uses: Infisical/secrets-action@v1.0.9
+        with:
+          method: "oidc"
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
+          env-slug: "dev"
+          secret-path: "/providers/modal"
+          domain: "https://app.infisical.com"
+
       - name: Live Modal CPU smoke
-        if: env.INFISICAL_CLIENT_ID != '' && env.INFISICAL_CLIENT_SECRET != '' && env.INFISICAL_PROJECT_ID != ''
+        if: vars.INFISICAL_IDENTITY_ID != '' && vars.INFISICAL_PROJECT_SLUG != ''
         run: npm run smoke:modal
 
       - name: Explain skipped live smoke
-        if: env.INFISICAL_CLIENT_ID == '' || env.INFISICAL_CLIENT_SECRET == '' || env.INFISICAL_PROJECT_ID == ''
+        if: vars.INFISICAL_IDENTITY_ID == '' || vars.INFISICAL_PROJECT_SLUG == ''
         run: |
           echo "Unit tests passed, but live Modal execution was skipped."
-          echo "Add INFISICAL_CLIENT_ID, INFISICAL_CLIENT_SECRET, and INFISICAL_PROJECT_ID as GitHub Actions repository secrets."
-          echo "For self-hosted Infisical, also set repository variable INFISICAL_SITE_URL to the public HTTPS base URL, then re-run."
+          echo "Create an Infisical Cloud OIDC machine identity for this GitHub workflow."
+          echo "Then provide only the public identity ID and project slug. No Infisical client secret is required in GitHub Actions."
