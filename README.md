@@ -132,10 +132,43 @@ Expected CPU proof:
 hello from credentialless Modal
 ```
 
+## Connecting provider accounts
+
+You do **not** hand-edit env files per provider. The gateway has an operator surface, separate from the agent surface:
+
+- **Connect page** — `http://localhost:4000/connect` (requires `OPERATOR_API_KEY`)
+- **Connect API** — `POST /v1/connections/:provider` (operator key only)
+- **Connect CLI**:
+
+```bash
+npm run connect:modal   # prompts for Modal token pair
+npm run connect:hf      # prompts for HF token + namespace
+```
+
+Every connect flow:
+
+1. validates the credential against the **real provider** (nothing is stored if validation fails)
+2. writes the credential to the secret store only (Infisical in production, gitignored `.env` in dev)
+3. activates it immediately via a runtime overlay — no restart
+4. records only opaque metadata (`ProviderConnection { id, provider, credentialRef, status }`)
+
+The agent API key can never reach the connection routes, and the operator key can never execute compute. This separation is test-enforced.
+
+## For agents (Kimi, ChatGPT, MCP clients, custom frameworks)
+
+Point any agent at the base URL + `AGENT_API_KEY` and have it read the machine-readable manifest first:
+
+```http
+GET /v1/capabilities
+```
+
+It describes the execute request schema, policy limits, connected providers, and failover behavior — everything an agent needs to use the gateway without reading these docs.
+
 ## Public API
 
 ```http
 GET  /health
+GET  /v1/capabilities
 GET  /v1/providers
 POST /v1/providers/modal/test
 POST /v1/providers/huggingface/test
@@ -143,6 +176,15 @@ POST /v1/compute/execute
 GET  /v1/compute/executions
 GET  /v1/compute/executions/:id
 POST /v1/compute/executions/:id/stop
+```
+
+Operator surface (requires `OPERATOR_API_KEY`, never the agent key):
+
+```http
+GET    /connect                      (connect page)
+GET    /v1/connections
+POST   /v1/connections/:provider
+DELETE /v1/connections/:provider
 ```
 
 All endpoints except `/health` require `Authorization: Bearer $AGENT_API_KEY`.

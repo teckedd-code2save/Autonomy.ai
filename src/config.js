@@ -12,6 +12,12 @@ export function loadConfig(env = process.env) {
   return {
     port: Number(env.PORT ?? 4000),
     agentApiKey: env.AGENT_API_KEY,
+    // Operator surface (connect UI/CLI/API). Distinct from the agent key on
+    // purpose: agents must never be able to connect or inspect credentials.
+    // When unset, operator routes are disabled entirely.
+    operatorApiKey: env.OPERATOR_API_KEY,
+    dataDir: env.DATA_DIR ?? "./data",
+    envFile: env.ENV_FILE ?? ".env",
     infisical: {
       siteUrl: env.INFISICAL_SITE_URL ?? "https://app.infisical.com",
       clientId: env.INFISICAL_CLIENT_ID,
